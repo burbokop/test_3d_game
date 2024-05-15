@@ -1,0 +1,3 @@
+[submodule "3rdparty/BadgerEngine"]
+	path = 3rdparty/BadgerEngine
+	url = git@github.com:burbokop/BadgerEngine.git
