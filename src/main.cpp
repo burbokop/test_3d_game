@@ -8,17 +8,18 @@
 #include <BadgerEngine/Tools/Model.h>
 #include <BadgerEngine/Utils/Fs.h>
 #include <BadgerEngine/Window.h>
+#include <BadgerEngine/Windows/GLFWWindow.h>
+#include <BadgerEngine/Windows/SDL2Window.h>
 #include <BadgerEngine/renderer.h>
 #include <BadgerEngine/vertexobject.h>
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
 #include <thread>
 
 using namespace BadgerEngine;
 using namespace BadgerEngine::Geometry;
 
-glm::vec2 cursorPosition(GLFWWindow& window)
+glm::vec2 cursorPosition(SDL2Window& window)
 {
     const auto pos = window.mousePosition();
     const auto center = window.size() / 2.f;
@@ -29,7 +30,7 @@ glm::vec2 cursorPosition(GLFWWindow& window)
     return r;
 }
 
-void updateRotation(GLFWWindow& window, PerspectiveCamera& camera)
+void updateRotation(SDL2Window& window, PerspectiveCamera& camera)
 {
     const auto cpos = cursorPosition(window);
     const auto size = window.size();
@@ -42,7 +43,7 @@ void updateRotation(GLFWWindow& window, PerspectiveCamera& camera)
     camera.setRotation(xq * yq);
 }
 
-void updateTranslation(GLFWWindow& window, PerspectiveCamera& camera)
+void updateTranslation(SDL2Window& window, PerspectiveCamera& camera)
 {
     glm::vec3 direction = {
         0,
@@ -61,7 +62,7 @@ void updateTranslation(GLFWWindow& window, PerspectiveCamera& camera)
         direction.z = -1;
     }
 
-    std::cout << "direction: " << direction.x << ", " << direction.y << ", " << direction.z << std::endl;
+    // std::cout << "direction: " << direction.x << ", " << direction.y << ", " << direction.z << std::endl;
 
     float velocity = 0.1;
 
@@ -73,7 +74,8 @@ int main(int argc, const char** argv)
     assert(argc > 0);
     const auto executableDir = std::filesystem::path(argv[0]).parent_path();
 
-    const auto window = std::make_shared<GLFWWindow>("test_3d_game", 1000, 600);
+    // const auto window = std::make_shared<GLFWWindow>("test_3d_game", 1000, 600);
+    const auto window = std::make_shared<SDL2Window>("test_3d_game", 1000, 600);
 
     Renderer renderer(window, executableDir / "fonts/ZCOOL.ttf");
 
@@ -137,9 +139,9 @@ int main(int argc, const char** argv)
             }
         }
 
-        if (window->isPressed(Window::Key::A)) {
-            std::cout << "durSec: " << durSec << std::endl;
-        }
+        // if (window->isPressed(Window::Key::A)) {
+        //     std::cout << "durSec: " << durSec << std::endl;
+        // }
 
         // renderer.camera()->setTranslation(glm::vec3(0., 0., -durSec / 10.));
         updateRotation(*window, *renderer.camera());

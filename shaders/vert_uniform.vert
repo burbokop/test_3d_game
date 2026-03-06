@@ -4,6 +4,7 @@
 layout(binding = 0, set = 0) uniform UniformBufferObject {
         mat4 transformation;
         float time;
+        float _time;
         vec2 mouse;
 } global;
 
@@ -19,7 +20,7 @@ layout(binding = 0, set = 1) uniform LightingUniformBufferObject {
 } lighting;
 
 layout(binding = 0, set = 2) uniform OM {
-	mat4 model;
+    mat4 model;
 } object;
 
 layout(location = 0) in vec3 inPosition;
@@ -38,7 +39,19 @@ layout(location = 3) out vec3 normal;
 
 void main() {
     //gl_Position = ubo.proj * ubo.view * ubo.model * object.model * vec4(inPosition, 0.0, 1.0);
-    gl_Position = global.transformation * object.model * vec4(inPosition, 1.0);
+
+    mat4 tr = global.transformation;
+    mat4 model = object.model;
+    mat4 comb = tr * model;
+
+    mat4 iden = mat4(
+        1.,0.,0.,0,
+        0.,1.,0.,0,
+        0.,0.,1.,0,
+        0.,0.,0.,1
+    );
+
+    gl_Position = comb * vec4(inPosition, 1.0);
     globalCoordinates = (object.model * vec4(inPosition, 1.0)).xyz;
     normal = inNormal;
 
