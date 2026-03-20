@@ -21,6 +21,7 @@ layout(binding = 0, set = 1) uniform LightingUniformBufferObject {
 
 layout(binding = 0, set = 2) uniform OM {
     mat4 model;
+    vec3 center;
 } object;
 
 layout(location = 0) in vec3 inPosition;
@@ -53,8 +54,14 @@ void main() {
         0.,0.,0.,1
     );
 
-    gl_Position = comb * vec4(inPosition, 1.0);
-    globalCoordinates = (object.model * vec4(inPosition, 1.0)).xyz;
+    // vec4 center = vec4(object.center, 1.0);
+
+    vec4 pos = vec4(inPosition, 1.);
+
+    vec4 newPos = pos + vec4(inNormal, 0.) * 0.01;
+
+    gl_Position = comb * newPos;
+    globalCoordinates = (object.model * newPos).xyz;
     normal = inNormal;
 
 
