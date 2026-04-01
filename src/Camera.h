@@ -54,7 +54,7 @@ public:
 
     // Camera interface
 public:
-    glm::mat4 transformation(float aspect) const override;
+    glm::mat4 transformation(glm::vec2 extent) const override;
     glm::vec3 position() const override;
     float near() const override;
     float far() const override;

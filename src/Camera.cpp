@@ -74,9 +74,9 @@ void Camera::updateCameraVectors()
     m_up = glm::normalize(glm::cross(m_right, m_front));
 }
 
-glm::mat4 Camera::transformation(float aspect) const
+glm::mat4 Camera::transformation(glm::vec2 extent) const
 {
-    return getProjectionMatrix(aspect, near(), far()) * getViewMatrix();
+    return getProjectionMatrix(extent.x / extent.y, near(), far()) * getViewMatrix();
 }
 
 glm::vec3 Camera::position() const

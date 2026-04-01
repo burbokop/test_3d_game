@@ -20,13 +20,29 @@
 #include <BadgerEngine/Window.h>
 #include <BadgerEngine/Windows/GLFWWindow.h>
 #include <BadgerEngine/Windows/SDL2Window.h>
+#include <Body.png.h>
+#include <Body_AO.png.h>
+#include <Body_NM2.png.h>
+#include <Guns.png.h>
+#include <Guns_AO.png.h>
+#include <Metal_001_AO-Metal_001_roughness.png.h>
+#include <Metal_001_normal.png.h>
+#include <Metal_001_roughness.png.h>
+#include <MissileRack.png.h>
+#include <MissileRack_AO.png.h>
+#include <ZCOOL.ttf.h>
 #include <chrono>
 #include <deque>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
+#include <monkey.obj.h>
 #include <ranges>
+#include <ship.bin.h>
+#include <ship.gltf.h>
 #include <thread>
+#include <unlit_shadow.frag.spv.h>
+#include <untitled.obj.h>
 
 using namespace BadgerEngine::Geometry;
 namespace Import = BadgerEngine::Import;
@@ -131,7 +147,7 @@ std::optional<BadgerEngine::MaterialColorChannel> normalMapFromImportedMesh(cons
     }
 }
 
-BadgerEngine::Model modelFromImported(const Import::Mesh& mesh)
+BadgerEngine::Model modelFromImported(const Import::Mesh& mesh, bool castShadow)
 {
     const auto baseColor = baseColorFromImportedMesh(mesh);
     const auto ambientOclusionMap = ambientOclusionMapFromImportedMesh(mesh);
@@ -147,6 +163,7 @@ BadgerEngine::Model modelFromImported(const Import::Mesh& mesh)
                 .metallness = 0.f,
                 .roughness = 0.5f,
                 .indexOfRefration = 1.45f,
+                .castShadow = castShadow,
             },
             BadgerEngine::PolygonMode::Fill);
     } else {
@@ -161,29 +178,53 @@ BadgerEngine::Model modelFromImported(const Import::Mesh& mesh)
     }
 }
 
+BadgerEngine::Model bsdfModelFromMesh(const Shared<Mesh>& mesh, bool castShadow)
+{
+    return BadgerEngine::Model(
+        mesh,
+        BadgerEngine::BSDFMaterial {
+            .baseColor = glm::vec4(0.5, 0.5, 0.5, 1),
+            .normalMap = glm::vec4(0.50196, 0.50196, 1, 1),
+            .ambientOclusion = glm::vec4(1.),
+            .metallness = 0.f,
+            .roughness = 0.5f,
+            .indexOfRefration = 1.45f,
+            .castShadow = castShadow,
+        },
+        BadgerEngine::PolygonMode::Fill);
+}
+
 int main(int argc, const char** argv)
 {
     assert(argc > 0);
     const auto executableDir = std::filesystem::path(argv[0]).parent_path();
 
     const auto window = std::make_shared<Win>("test_3d_game", 1400, 800);
-    window->setCursorVisible(false);
+    window->setCursorVisible(false).transform_error(AsCritical());
     const auto camera = std::make_shared<Camera>();
 
-    BadgerEngine::Renderer renderer(window, camera, executableDir / "fonts/ZCOOL.ttf");
+    // const auto directionalLightCamera = std::make_shared<BadgerEngine::DirectionBasedOrthographicCamera>();
+
+    BadgerEngine::Renderer renderer(window, camera, ZCOOL_ttf);
+    // BadgerEngine::Renderer renderer(window, directionalLightCamera, ZCOOL_ttf);
 
     BadgerEngine::TextureLoader textureLoader;
 
-    textureLoader.load("../textures/Body.png", executableDir / "textures/Body.png").transform_error(AsCritical());
-    textureLoader.load("../textures/Body_AO.png", executableDir / "textures/Body_AO.png").transform_error(AsCritical());
-    textureLoader.load("../textures/Body_NM2.png", executableDir / "textures/Body_NM2.png").transform_error(AsCritical());
-    textureLoader.load("../textures/Guns.png", executableDir / "textures/Guns.png").transform_error(AsCritical());
-    textureLoader.load("../textures/Guns_AO.png", executableDir / "textures/Guns_AO.png").transform_error(AsCritical());
-    textureLoader.load("../textures/MissileRack.png", executableDir / "textures/MissileRack.png").transform_error(AsCritical());
-    textureLoader.load("../textures/MissileRack_AO.png", executableDir / "textures/MissileRack_AO.png").transform_error(AsCritical());
-    textureLoader.load("../textures/Metal_001_normal.png", executableDir / "textures/Metal_001_normal.png").transform_error(AsCritical());
-    // R channel - AO, G channel - Roughness, B channel - Metallness
-    textureLoader.load("../textures/Metal_001_AO-Metal_001_roughness.png", executableDir / "textures/Metal_001_AO-Metal_001_roughness.png").transform_error(AsCritical());
+    textureLoader
+        .parse(
+            {
+                { "../textures/Body.png", Body_png },
+                { "../textures/Body_AO.png", Body_AO_png },
+                { "../textures/Body_NM2.png", Body_NM2_png },
+                { "../textures/Guns.png", Guns_png },
+                { "../textures/Guns_AO.png", Guns_AO_png },
+                { "../textures/MissileRack.png", MissileRack_png },
+                { "../textures/MissileRack_AO.png", MissileRack_AO_png },
+                { "../textures/Metal_001_normal.png", Metal_001_normal_png },
+                // R channel - AO, G channel - Roughness, B channel - Metallness
+                { "../textures/Metal_001_AO-Metal_001_roughness.png", Metal_001_AO_minus_Metal_001_roughness_png },
+            })
+        .transform_error(AsCritical());
 
     // window->drawTexture(textureLoader.texture("Body.png").value());
 
@@ -236,9 +277,21 @@ int main(int argc, const char** argv)
                            .setTranslation(glm::translate(glm::mat4(1.f), glm::vec3(0, 0, 20.f)));
     }
 
+    {
+        auto& plate3 = renderer.addObject(
+                                   BadgerEngine::Model(
+                                       planeMesh,
+                                       BadgerEngine::ShadowMapMaterial {
+                                           .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
+                                           .frag = { unlit_shadow_frag.begin(), unlit_shadow_frag.end() },
+                                       },
+                                       BadgerEngine::PolygonMode::Fill))
+                           .setTranslation(glm::translate(glm::mat4(1.f), glm::vec3(-1, 5, 0)));
+    }
+
     auto& cube = renderer.addObject(
         BadgerEngine::Model(
-            Mesh::fromObjMesh(ObjMesh::load(executableDir / "models/untitled.obj").transform_error(BadgerEngine::AsCritical()).value(), glm::vec3(0, 0, 0)),
+            Mesh::fromObjMesh(ObjMesh::parse(untitled_obj).transform_error(BadgerEngine::AsCritical()).value(), glm::vec3(0, 0, 0)),
             BadgerEngine::CustomMaterial {
                 .textures = {},
                 .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
@@ -249,7 +302,7 @@ int main(int argc, const char** argv)
 
     auto& monkey = renderer.addObject(
         BadgerEngine::Model(
-            Mesh::fromObjMesh(ObjMesh::load(executableDir / "models/monkey.obj").transform_error(AsCritical()).value(), glm::vec3(0, 0, 0)),
+            Mesh::fromObjMesh(ObjMesh::parse(monkey_obj).transform_error(AsCritical()).value(), glm::vec3(0, 0, 0)),
             BadgerEngine::CustomMaterial {
                 .textures = {},
                 .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
@@ -262,7 +315,7 @@ int main(int argc, const char** argv)
     const auto yellowLight = renderer.addPointLight({ 1.f, 1.f, 1.f }, { 1.f, 1.f, 0.f }, 50.f);
     auto& blueLightObj = renderer.addObject(
         BadgerEngine::Model(
-            Mesh::fromObjMesh(ObjMesh::load(executableDir / "models/untitled.obj").transform_error(BadgerEngine::AsCritical()).value(), glm::vec3(0, 0, 0)),
+            Mesh::fromObjMesh(ObjMesh::parse(untitled_obj).transform_error(BadgerEngine::AsCritical()).value(), glm::vec3(0, 0, 0)),
             BadgerEngine::CustomMaterial {
                 .textures = {},
                 .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
@@ -272,7 +325,7 @@ int main(int argc, const char** argv)
 
     auto& yellowLightObj = renderer.addObject(
         BadgerEngine::Model(
-            Mesh::fromObjMesh(ObjMesh::load(executableDir / "models/untitled.obj").transform_error(BadgerEngine::AsCritical()).value(), glm::vec3(0, 0, 0)),
+            Mesh::fromObjMesh(ObjMesh::parse(untitled_obj).transform_error(BadgerEngine::AsCritical()).value(), glm::vec3(0, 0, 0)),
             BadgerEngine::CustomMaterial {
                 .textures = {},
                 .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
@@ -303,7 +356,7 @@ int main(int argc, const char** argv)
                 Topology::LineList,
                 std::vector<Vertex> {
                     { .position = { 0, 0, 0 }, .normal = { -1, 0, 0 }, .color = { 1, 0, 0 }, .uv = { 0.0f, 0.0f } },
-                    { .position = { 1, 0, 0 }, .normal = { 1, 0, 0 }, .color = { 0, 1, 0 }, .uv = { 1.0f, 0.0f } },
+                    { .position = { 100, 0, 0 }, .normal = { 1, 0, 0 }, .color = { 0, 1, 0 }, .uv = { 1.0f, 0.0f } },
                 },
                 std::vector<std::uint32_t> { 0, 1 }),
             BadgerEngine::CustomMaterial {
@@ -313,36 +366,64 @@ int main(int argc, const char** argv)
             },
             BadgerEngine::PolygonMode::Line));
 
-    auto& directionalLightPlane = renderer.addObject(
-        BadgerEngine::Model(
-            Mesh::create(
-                Topology::TriangleList,
-                std::vector<Vertex> {
-                    { .position = { 0, 1.f, 1.f }, .normal = { 1, 0, 0 }, .color = { 1.0f, 0.0f, 0.0f }, .uv = { 0.0f, 0.0f } },
-                    { .position = { 0, -1.f, 1.f }, .normal = { 1, 0, 0 }, .color = { 0.0f, 1.0f, 0.0f }, .uv = { 1.0f, 0.0f } },
-                    { .position = { 0, -1.f, -1.f }, .normal = { 1, 0, 0 }, .color = { 0.0f, 0.0f, 1.0f }, .uv = { 1.0f, 1.0f } },
-                    { .position = { 0, 1.f, -1.f }, .normal = { 1, 0, 0 }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 1.0f } },
-                },
-                std::vector<std::uint32_t> { 0, 1, 2,
-                    2, 3, 0 }),
-            BadgerEngine::CustomMaterial {
-                .textures = {},
-                .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
-                .frag = { prism_frag.begin(), prism_frag.end() },
-            },
-            BadgerEngine::PolygonMode::Line),
-        BadgerEngine::RenderingOptions { .backfaceCulling = false });
+    // auto& directionalLightPlane = renderer.addObject(
+    //     BadgerEngine::Model(
+    //         Mesh::create(
+    //             Topology::TriangleList,
+    //             std::vector<Vertex> {
+    //                 { .position = { 0, 1.f, 1.f }, .normal = { 1, 0, 0 }, .color = { 1.0f, 0.0f, 0.0f }, .uv = { 0.0f, 0.0f } },
+    //                 { .position = { 0, -1.f, 1.f }, .normal = { 1, 0, 0 }, .color = { 0.0f, 1.0f, 0.0f }, .uv = { 1.0f, 0.0f } },
+    //                 { .position = { 0, -1.f, -1.f }, .normal = { 1, 0, 0 }, .color = { 0.0f, 0.0f, 1.0f }, .uv = { 1.0f, 1.0f } },
+    //                 { .position = { 0, 1.f, -1.f }, .normal = { 1, 0, 0 }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 1.0f } },
+    //             },
+    //             std::vector<std::uint32_t> { 0, 1, 2,
+    //                 2, 3, 0 }),
+    //         BadgerEngine::CustomMaterial {
+    //             .textures = {},
+    //             .vert = { vert_uniform_vert.begin(), vert_uniform_vert.end() },
+    //             .frag = { prism_frag.begin(), prism_frag.end() },
+    //         },
+    //         BadgerEngine::PolygonMode::Line),
+    //     BadgerEngine::RenderingOptions { .backfaceCulling = false });
 
     // Import::AssimpImporter importer;
     Import::TinyGLTFImporter importer;
 
+    // auto _experimentalShipMeshes
+    //     = Import::AssimpImporter()
+    //           .load(textureLoader, executableDir / "models/ship.gltf")
+    //           .transform_error(BadgerEngine::AsCritical())
+    //           .value()
+    //           .meshes()
+    //     | std::ranges::to<std::deque>();
+
     auto experimentalShipMeshes
         = importer
-              .load(textureLoader, executableDir / "models/ship.gltf")
+              .parse(textureLoader, ship_gltf, { { "ship.bin", ship_bin } }, "gltf")
               .transform_error(BadgerEngine::AsCritical())
               .value()
               .meshes()
         | std::ranges::to<std::deque>();
+
+    const Shared<Mesh> horisontalPlaneMesh = Mesh::create(
+        Topology::TriangleList,
+        std::vector<Vertex> {
+            { .position = { 20.f, 0, 20.f }, .normal = { 0, 1.f, 0 }, .tangent = { 1, 0, 0 }, .bitangent = { 0, 0, 1 }, .color = { 1.0f, 0.0f, 0.0f }, .uv = { 0.0f, 0.0f } },
+            { .position = { -20.f, 0, 20.f }, .normal = { 0, 1.f, 0 }, .tangent = { 1, 0, 0 }, .bitangent = { 0, 0, 1 }, .color = { 0.0f, 1.0f, 0.0f }, .uv = { 1.0f, 0.0f } },
+            { .position = { -20.f, 0, -20.f }, .normal = { 0, 1.f, 0 }, .tangent = { 1, 0, 0 }, .bitangent = { 0, 0, 1 }, .color = { 0.0f, 0.0f, 1.0f }, .uv = { 1.0f, 1.0f } },
+            { .position = { 20.f, 0, -20.f }, .normal = { 0, 1.f, 0 }, .tangent = { 1, 0, 0 }, .bitangent = { 0, 0, 1 }, .color = { 1.0f, 1.0f, 1.0f }, .uv = { 0.0f, 1.0f } },
+        },
+        std::vector<std::uint32_t> { 0, 1, 2,
+            2, 3, 0 });
+
+    renderer.addObject(bsdfModelFromMesh(horisontalPlaneMesh, false))
+        .setScale(glm::scale(glm::mat4(1.), { 0.5, 0.5, 0.5 }))
+        .setRotation(glm::rotate(glm::mat4(1.), -std::numbers::pi_v<float> / 2, glm::vec3(0, 1, 0)))
+        .setTranslation(glm::translate(glm::mat4(1.f), glm::vec3(0, 5.f, -15.f)));
+
+    renderer.setShadowFocus(glm::vec3(0, 0, -15.f));
+
+    // std::abort();
 
     // auto experimentalShipMeshes = Mesh::loadByAssimp(executableDir / "models/ship.glb").transform_error(BadgerEngine::AsCritical()).value() | std::ranges::to<std::deque>();
     // auto experimentalShipMeshes = Mesh::loadByAssimp(executableDir / "models/ship.stl").transform_error(BadgerEngine::AsCritical()).value() | std::ranges::to<std::deque>();
@@ -355,7 +436,9 @@ int main(int argc, const char** argv)
 
     const auto desiredFps = 60;
 
-    while (!window->shouldClose()) {
+    float lightAngle = 0;
+
+    while (!(window->shouldClose() || window->isPressed(BadgerEngine::Window::Key::ESCAPE))) {
         const auto now = std::chrono::high_resolution_clock::now();
         const auto elapsedFromBegin = now - begin;
         const auto dt = now - std::exchange(prev, now);
@@ -363,13 +446,15 @@ int main(int argc, const char** argv)
         if (!experimentalShipMeshes.empty()) {
             const auto mesh = experimentalShipMeshes.front();
 
-            // std::cout
-            //     << "loading mesh: " << mesh->mesh()->vertices().size() << ", " << mesh->mesh()->indices().size() << std::endl;
+            // const auto options = BadgerEngine::RenderingOptions { .displayNormals = mesh->name() == "Main Body" ? BadgerEngine::DisplayNormals::VertexNormals : BadgerEngine::DisplayNormals::NoNormals };
+            const auto options = BadgerEngine::RenderingOptions {};
 
-            const auto options = BadgerEngine::RenderingOptions { .displayNormals = mesh->name() == "Main Body" ? BadgerEngine::DisplayNormals::VertexNormals : BadgerEngine::DisplayNormals::NoNormals };
+            // std::cout
+            //     << "loading mesh: " << mesh->name() << " -> " << mesh->mesh()->vertices().size() << ", " << mesh->mesh()->indices().size() << ", " << int(options.displayNormals) << std::endl;
+
             // const auto options = BadgerEngine::RenderingOptions {};
 
-            renderer.addObject(modelFromImported(*mesh), options)
+            renderer.addObject(modelFromImported(*mesh, true), options)
                 .setScale(glm::scale(glm::mat4(1.), { 0.5, 0.5, 0.5 }))
                 .setRotation(glm::rotate(glm::mat4(1.), -std::numbers::pi_v<float> / 2, glm::vec3(0, 1, 0)))
                 .setTranslation(glm::translate(glm::mat4(1.f), glm::vec3(0, 0, -15.f)));
@@ -391,6 +476,8 @@ int main(int argc, const char** argv)
             }
         }
 
+        const float dtSec = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count() / 1000.;
+
         {
             const float durSec = std::chrono::duration_cast<std::chrono::milliseconds>(elapsedFromBegin).count() / 1000.;
 
@@ -409,19 +496,37 @@ int main(int argc, const char** argv)
                 yellowLight->position = pos;
             }
             {
-                const auto x = std::cos(durSec / 8);
-                const auto y = std::sin(durSec / 8);
+                if (window->isPressed(BadgerEngine::Window::Key::MINUS)) {
+                    lightAngle -= 2 * dtSec;
+                } else if (window->isPressed(BadgerEngine::Window::Key::EQUAL)) {
+                    lightAngle += 2 * dtSec;
+                }
+
+                if (window->isPressed(BadgerEngine::Window::Key::_1)) {
+                    renderer.setMode(0);
+                } else if (window->isPressed(BadgerEngine::Window::Key::_2)) {
+                    renderer.setMode(1);
+                } else if (window->isPressed(BadgerEngine::Window::Key::_3)) {
+                    renderer.setMode(2);
+                }
+
+                const auto x = std::cos(lightAngle);
+                const auto y = std::sin(lightAngle);
 
                 renderer.setDirectionalLightVector(glm::rotate(glm::mat4(1.), std::numbers::pi_v<float> / 4, glm::vec3(0, 1, 0)) * glm::vec4(x, y, 0, 0));
                 renderer.setDirectionalLightIntensity(0.5);
 
                 directionalLightVector
-                    .setTranslation({ 0, 0, -5 })
-                    .setRotation(vectorAlignmentMatrix(renderer.directionalLightVector(), { 1, 0, 0 }));
+                    .setTranslation(glm::translate(glm::mat4(1.f), glm::vec3(0, 0, -15.f)))
+                    .setRotation(vectorAlignmentMatrix(-renderer.directionalLightVector(), { 1, 0, 0 }));
 
-                directionalLightPlane
-                    .setTranslation({ 0, 0, -5 })
-                    .setRotation(vectorAlignmentMatrix(renderer.directionalLightVector(), { 1, 0, 0 }));
+                monkey.setTranslation(renderer.shadowCameraPosition());
+
+                // directionalLightPlane
+                //     .setTranslation({ 0, 0, -5 })
+                //     .setRotation(vectorAlignmentMatrix(renderer.directionalLightVector(), { 1, 0, 0 }));
+
+                // directionalLightCamera->setOrbit({ 0, 0, -5 }, renderer.directionalLightVector());
             }
         }
 
@@ -431,7 +536,6 @@ int main(int argc, const char** argv)
 
         // renderer.camera()->setTranslation(glm::vec3(0., 0., -durSec / 10.));
 
-        const float dtSec = std::chrono::duration_cast<std::chrono::milliseconds>(dt).count() / 1000.;
         // updateRotation(*window, *renderer.camera(), dtSec);
         // updateTranslation(*window, *renderer.camera());
 
