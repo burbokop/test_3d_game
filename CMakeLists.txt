@@ -4,16 +4,10 @@ project(test_3d_game LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-add_executable(test_3d_game src/main.cpp
-    src/Camera.h src/Camera.cpp)
-
-find_package(Vulkan REQUIRED)
-find_package(glfw3 REQUIRED)
+set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 add_subdirectory(3rdparty/BadgerEngine)
-
-target_link_libraries(test_3d_game PRIVATE Vulkan::Vulkan glfw freetype BadgerEngine)
 
 badger_engine_add_embedded_shader_target(
     shaders
@@ -24,13 +18,38 @@ badger_engine_add_embedded_shader_target(
     ${CMAKE_CURRENT_LIST_DIR}/shaders/prism.frag
     ${CMAKE_CURRENT_LIST_DIR}/shaders/lit.frag
     ${CMAKE_CURRENT_LIST_DIR}/shaders/unlit.frag
+    ${CMAKE_CURRENT_LIST_DIR}/shaders/unlit_shadow.frag
     ${CMAKE_CURRENT_LIST_DIR}/shaders/shader.vert
     ${CMAKE_CURRENT_LIST_DIR}/shaders/vert_uniform.vert
-    ${CMAKE_CURRENT_LIST_DIR}/shaders/vert_uniform_bloated.vert)
+    ${CMAKE_CURRENT_LIST_DIR}/shaders/vert_uniform_bloated.vert
+    ${CMAKE_CURRENT_LIST_DIR}/shaders/background.frag
+    ${CMAKE_CURRENT_LIST_DIR}/shaders/background.vert)
 
-add_dependencies(test_3d_game shaders)
-target_link_libraries(test_3d_game PRIVATE shaders)
+badger_engine_add_embedded_target(
+    assets
+    STATIC
+    OUTPUT_DIR
+    ${CMAKE_CURRENT_BINARY_DIR}/assets
+    SOURCES
+    ${CMAKE_CURRENT_LIST_DIR}/assets/fonts/ZCOOL.ttf
+    ${CMAKE_CURRENT_LIST_DIR}/assets/models/cube.obj
+    ${CMAKE_CURRENT_LIST_DIR}/assets/models/monkey.obj
+    ${CMAKE_CURRENT_LIST_DIR}/assets/models/ship.bin
+    ${CMAKE_CURRENT_LIST_DIR}/assets/models/ship.gltf
+    ${CMAKE_CURRENT_LIST_DIR}/assets/models/untitled.obj
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Body.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Body_AO.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Body_NM2.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Guns.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Guns_AO.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Metal_001_AO-Metal_001_roughness.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Metal_001_normal.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/Metal_001_roughness.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/MissileRack.png
+    ${CMAKE_CURRENT_LIST_DIR}/assets/textures/MissileRack_AO.png)
 
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/fonts DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/models DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY ${CMAKE_CURRENT_LIST_DIR}/textures DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+add_executable(test_3d_game src/main.cpp)
+add_executable(space_ship_in_space_scene src/SpaceShipInSpaceScene.cpp)
+
+target_link_libraries(test_3d_game PRIVATE BadgerEngine shaders assets)
+target_link_libraries(space_ship_in_space_scene PRIVATE BadgerEngine shaders assets)
